@@ -39,6 +39,7 @@ _TEXTO = {
     "aseguradora", "factura_proveedor", "fecha_factura_proveedor", "factura_a_la_aseguradora",
     "mes_facturado_a_la_aseguradora", "caso_aseguradora_archivo", "siniestro_sistema",
     "estado_sistema", "fuente_sistema", "hoja_repuestos", "hoja_aseguradora", "veredicto_del_cruce",
+    "ubicacion_en_repuestos", "ubicacion_en_aseguradoras",
 }
 _BOOLEANO = {"existe_en_sistema", "requiere_revision"}
 _ENTERO = {"cantidad_registros_repuestos"}
@@ -143,8 +144,24 @@ def motor(url: str) -> Engine:
 
 
 def crear_esquema(engine: Engine) -> None:
-    """Idempotente: crea solo las tablas que falten."""
+    """Idempotente: crea las tablas que falten y agrega las columnas nuevas.
+
+    Sin lo segundo, cada columna que se agregue al reporte obligaria a rehacer
+    la base y se perderia el historial de revision.
+    """
     metadata.create_all(engine)
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    for tabla in metadata.sorted_tables:
+        existentes = {c["name"] for c in inspector.get_columns(tabla.name)}
+        faltantes = [c for c in tabla.columns if c.name not in existentes]
+        if not faltantes:
+            continue
+        with engine.begin() as con:
+            for columna in faltantes:
+                tipo = columna.type.compile(engine.dialect)
+                con.execute(text(f"ALTER TABLE {tabla.name} ADD COLUMN {columna.name} {tipo}"))
+                logger.info("Columna agregada a %s: %s", tabla.name, columna.name)
 
 
 def _ahora() -> str:

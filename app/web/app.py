@@ -83,6 +83,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
         USUARIOS=settings.web_usuarios,
     )
     app.jinja_env.globals["url_de_orden"] = settings.url_de_orden
+    app.jinja_env.globals["url_del_archivo"] = settings.url_del_archivo
     motor = base.motor(settings.audit_db_url)
     app.jinja_env.filters["pesos"] = pesos
     app.jinja_env.filters["porcentaje"] = porcentaje

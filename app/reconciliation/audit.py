@@ -436,6 +436,9 @@ COLUMNAS_ORDEN: list[tuple[str, Callable[[FotografiaOrden], object]]] = [
     ("esperado_del_cruce", _esperado_del_cruce),
     ("residuo_del_cruce", _residuo_del_cruce),
     ("veredicto_del_cruce", veredicto_del_cruce),
+    # Donde esta la orden en cada Excel, para poder ir a verificarla
+    ("ubicacion_en_repuestos", lambda f: f.fuente_repuestos),
+    ("ubicacion_en_aseguradoras", lambda f: f.fuente_aseguradora),
 ]
 
 

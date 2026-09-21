@@ -131,3 +131,28 @@ def test_dinero_por_mes_con_la_misma_metrica_que_la_vista(engine):
     abril = meses["2026-04"]
     assert abril["ordenes"] == 0 and abril["ordenes_sin_contraparte"] == 1
     assert abril["gastado_sin_contraparte"] == Decimal("275000")
+
+
+def test_el_esquema_agrega_columnas_nuevas_sin_rehacer_la_base(engine):
+    """Una columna nueva en el reporte no puede costar el historial de revision."""
+    from sqlalchemy import select, text
+    base.registrar_revision(engine, "1017583", "verificada", por="gerente")
+    with engine.begin() as con:
+        con.execute(text("ALTER TABLE ordenes DROP COLUMN ubicacion_en_repuestos"))
+    base.crear_esquema(engine)          # debe devolverla
+    with engine.connect() as con:
+        columnas = {c["name"] for c in __import__("sqlalchemy").inspect(engine).get_columns("ordenes")}
+        estado = con.execute(select(base.revisiones.c.estado)).scalar()
+    assert "ubicacion_en_repuestos" in columnas
+    assert estado == "verificada"       # y no haber tocado lo ya revisado
+
+
+def test_se_guarda_donde_esta_cada_orden_en_los_excel(engine):
+    from sqlalchemy import select
+    base.guardar_corrida(engine, _caso_real())
+    with engine.connect() as con:
+        fila = con.execute(select(base.ordenes).where(
+            base.ordenes.c.orden_ceser == "1017550")).mappings().first()
+    assert "HAROLD H.T" in fila["ubicacion_en_repuestos"]
+    assert "fila" in fila["ubicacion_en_repuestos"]
+    assert "FALABELLA" in fila["ubicacion_en_aseguradoras"]

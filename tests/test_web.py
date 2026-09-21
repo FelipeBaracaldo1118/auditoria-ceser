@@ -362,3 +362,20 @@ def test_el_detalle_viene_plegado_y_no_pesa_la_pagina(cliente, app):
     html = cliente.get("/ordenes?estado=todas").get_data(as_text=True)
     assert '<tr class="detalle" hidden>' in html
     assert "Pulsa una fila para ver su detalle" in html
+
+
+# --- Utilidad a la vista y enlaces al Excel -------------------------------
+def test_la_tabla_muestra_la_utilidad_de_cada_orden(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _caso_real())
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
+    assert "<th>Utilidad</th>" in html
+    assert "$57.989" in html        # 392.989 cobrados menos 335.000 de costo
+
+
+def test_el_detalle_enlaza_a_los_dos_excel_con_su_ubicacion(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _caso_real())
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
+    assert "docs.google.com/spreadsheets" in html
+    assert "HAROLD H.T fila" in html and "FALABELLA fila" in html

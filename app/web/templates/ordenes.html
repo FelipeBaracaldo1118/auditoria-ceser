@@ -70,6 +70,7 @@
         <th>Nos cobraron</th>
         <th>Cobramos</th>
         <th>Facturado</th>
+        <th>Utilidad</th>
         <th>Diferencia</th>
         <th class="l">Veredicto</th>
         <th class="l">Revisión</th>
@@ -89,6 +90,9 @@
         <td>{{ f.costo_repuestos_archivo|pesos }}</td>
         <td>{{ f.total_cobrado_hoja_repuestos|pesos }}</td>
         <td>{{ f.valor_total_archivo_aseguradora|pesos }}</td>
+        <td class="{% if f.utilidad_del_servicio is not none and f.utilidad_del_servicio < 0 %}resid-alert{% endif %}">
+          {{ f.utilidad_del_servicio|pesos }}
+          {%- if f.margen_del_servicio is not none %}<span class="margen">{{ f.margen_del_servicio|porcentaje }}</span>{% endif %}</td>
         <td class="{% if f.veredicto_del_cruce == 'facturado_por_debajo' %}resid-alert{% elif f.veredicto_del_cruce == 'residuo' %}resid-warn{% else %}dim{% endif %}">{{ f.residuo_del_cruce|pesos }}</td>
         <td class="l"><span class="pill {{ VEREDICTOS[f.veredicto_del_cruce][1] }}">{{ VEREDICTOS[f.veredicto_del_cruce][0] }}</span></td>
         <td class="l">
@@ -103,15 +107,23 @@
           </form>
         </td>
       </tr>
-      <tr class="detalle" hidden><td colspan="8">
+      <tr class="detalle" hidden><td colspan="9">
         {% for s in detalle.get(f.orden_ceser, []) %}
           <p><span class="pill {{ s.severidad }}">{{ s.etiqueta }}</span> {{ s.descripcion }}</p>
         {% else %}
           <p class="nota">Sin novedades: esta orden cuadra.</p>
         {% endfor %}
         <div class="ficha">
-          <span><b>Proveedor</b> factura {{ f.factura_proveedor or "—" }} del {{ f.fecha_factura_proveedor or "—" }}</span>
-          <span><b>Aseguradora</b> factura {{ f.factura_a_la_aseguradora or "—" }}
+          <span>{% set xls = url_del_archivo('repuestos') %}
+            {% if xls and f.ubicacion_en_repuestos %}<a href="{{ xls }}" target="_blank" rel="noopener"
+               title="Abrir el Excel de Repuestos · {{ f.ubicacion_en_repuestos }}"><b>Proveedor</b> ↗</a>{% else %}<b>Proveedor</b>{% endif %}
+            factura {{ f.factura_proveedor or "—" }} del {{ f.fecha_factura_proveedor or "—" }}
+            {%- if f.ubicacion_en_repuestos %} · <span class="donde">{{ f.ubicacion_en_repuestos }}</span>{% endif %}</span>
+          <span>{% set xla = url_del_archivo('aseguradoras') %}
+            {% if xla and f.ubicacion_en_aseguradoras %}<a href="{{ xla }}" target="_blank" rel="noopener"
+               title="Abrir el Excel de Aseguradoras · {{ f.ubicacion_en_aseguradoras }}"><b>Aseguradora</b> ↗</a>{% else %}<b>Aseguradora</b>{% endif %}
+            {%- if f.ubicacion_en_aseguradoras %} · <span class="donde">{{ f.ubicacion_en_aseguradoras }}</span>{% endif %}
+            factura {{ f.factura_a_la_aseguradora or "—" }}
             en <span class="{% if invertido %}invertido{% endif %}">{{ f.mes_facturado_a_la_aseguradora or "—" }}</span>
             {%- if invertido %} · se cobró antes de que el proveedor facturara{% endif %}</span>
           <span><b>Repuesto</b> {{ f.repuestos_cobrados_hoja_repuestos|pesos }} en la hoja ·
@@ -119,12 +131,13 @@
           <span><b>Mano de obra</b> {{ f.mano_obra_hoja_repuestos|pesos }}</span>
           <span><b>IVA</b> {{ f.iva_archivo_aseguradora|pesos }} · <b>fletes</b> {{ f.transporte_columna_archivo|pesos }}</span>
           <span><b>Esperado</b> {{ f.esperado_del_cruce|pesos }} · <b>facturado</b> {{ f.valor_total_archivo_aseguradora|pesos }}</span>
-          <span><b>Margen</b> {{ f.margen_del_repuesto_con_iva|porcentaje }} sobre el repuesto</span>
+          <span><b>Margen</b> {{ f.margen_del_repuesto_con_iva|porcentaje }} sobre el repuesto ·
+            {{ f.margen_del_servicio|porcentaje }} sobre el servicio</span>
           <span><b>Hojas</b> {{ f.hoja_repuestos or "—" }} · {{ f.hoja_aseguradora or "—" }}</span>
         </div>
       </td></tr>
     {% else %}
-      <tr><td class="vacio" colspan="8">Ninguna orden coincide con estos filtros.</td></tr>
+      <tr><td class="vacio" colspan="9">Ninguna orden coincide con estos filtros.</td></tr>
     {% endfor %}
     </tbody>
   </table></div>

@@ -109,6 +109,13 @@ class Settings:
     web_secret_key: str = ""     # firma las sesiones de la interfaz
     web_usuarios: dict = field(default_factory=dict)   # usuario -> hash de contraseña
 
+    def url_del_archivo(self, clave: str) -> str | None:
+        """Direccion del Excel en Drive, para ir a verificar una orden a mano."""
+        for cfg in self.archivos:
+            if cfg.clave == clave and cfg.file_id:
+                return f"https://docs.google.com/spreadsheets/d/{cfg.file_id}/edit"
+        return None
+
     def url_de_orden(self, orden: str | None) -> str | None:
         """Direccion donde se consulta una orden, segun su prefijo."""
         numero = str(orden or "").strip()
