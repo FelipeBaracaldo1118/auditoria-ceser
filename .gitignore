@@ -1,0 +1,16 @@
+.env
+.secrets/
+*.json.credentials
+token.json
+
+data/*
+!data/.gitkeep
+reportes/*
+!reportes/.gitkeep
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.DS_Store

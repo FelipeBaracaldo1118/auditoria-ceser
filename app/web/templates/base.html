@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block titulo %}Auditoría CESER{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+{% if session.usuario %}
+<header class="barra">
+  <span class="marca">Auditoría CESER</span>
+  <nav>
+    <a href="{{ url_for('panel') }}" {% if request.endpoint=='panel' %}class="activo"{% endif %}>Resumen</a>
+    <a href="{{ url_for('lista_ordenes') }}" {% if request.endpoint=='lista_ordenes' %}class="activo"{% endif %}>Órdenes</a>
+    <a href="{{ url_for('ver_historial') }}" {% if request.endpoint=='ver_historial' %}class="activo"{% endif %}>Historial</a>
+  </nav>
+  <span class="quien">{{ session.usuario }} · <a href="{{ url_for('salir') }}">salir</a></span>
+</header>
+{% endif %}
+{% block cuerpo %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Etapa 1: exploracion e ingesta. Agregar dependencias solo cuando se usen.
+pandas>=2.2
+openpyxl>=3.1
+google-api-python-client>=2.130
+google-auth>=2.30
+google-auth-oauthlib>=1.2
+python-dotenv>=1.0
+pytest>=8.0
+
+# Etapa 3: lectura de MariaDB / TECH
+sqlalchemy>=2.0
+pymysql>=1.1
+
+# Etapa 4: interfaz web sobre la base de auditoria
+flask>=3.0
+gunicorn>=22.0

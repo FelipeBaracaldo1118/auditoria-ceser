@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block titulo %}Historial · Auditoría CESER{% endblock %}
+{% block cuerpo %}
+<main>
+  <div><h1>Historial de revisión</h1>
+    <p class="sub">Cada cambio de estado, con quién lo hizo y cuándo. El veredicto que calcula la
+      auditoría nunca se modifica: la revisión es una capa aparte.</p></div>
+  <div class="scroll"><table>
+    <thead><tr><th class="l">Cuándo</th><th class="l">Orden</th><th class="l">Cambio</th>
+      <th class="l">Quién</th><th class="l">Nota</th></tr></thead>
+    <tbody>{% for e in eventos %}
+      <tr><td class="l dim">{{ e.cuando.replace("T"," ")[:16] }}</td>
+        <td class="l orden">{{ e.orden_ceser }}</td>
+        <td class="l">{{ NOMBRE_ESTADO.get(e.estado_anterior, e.estado_anterior) }} →
+          <b>{{ NOMBRE_ESTADO.get(e.estado_nuevo, e.estado_nuevo) }}</b></td>
+        <td class="l">{{ e.por or "—" }}</td><td class="l">{{ e.nota or "" }}</td></tr>
+    {% else %}<tr><td class="vacio" colspan="5">Todavía no se ha marcado ninguna orden.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</main>
+{% endblock %}

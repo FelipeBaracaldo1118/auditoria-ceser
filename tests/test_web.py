@@ -1,0 +1,268 @@
+"""Interfaz de revision: acceso, filtros y marcado de estados."""
+
+import dataclasses
+
+import pytest
+from sqlalchemy import select
+from werkzeug.security import generate_password_hash
+
+from app.config.settings import get_settings
+from app.database import auditoria as base
+from app.web.app import crear_app
+from tests.test_auditoria_db import _caso_real
+
+CLAVE = "clave-de-prueba-larga"
+
+
+@pytest.fixture
+def app(tmp_path):
+    url = f"sqlite:///{tmp_path / 'auditoria.db'}"
+    motor = base.motor(url)
+    base.crear_esquema(motor)
+    base.guardar_corrida(motor, _caso_real(), cobertura=("2025-10", "2026-08"))
+    settings = dataclasses.replace(
+        get_settings(), audit_db_url=url, web_secret_key="secreto-de-prueba",
+        web_usuarios={"gerente": generate_password_hash(CLAVE)})
+    aplicacion = crear_app(settings)
+    aplicacion.config["TESTING"] = True
+    aplicacion.motor_de_prueba = motor
+    return aplicacion
+
+
+@pytest.fixture
+def cliente(app):
+    return app.test_client()
+
+
+def _muchas_ordenes(motor, cuantas=120):
+    """Una corrida grande, para probar la paginacion."""
+    from decimal import Decimal
+    from app.reconciliation.audit import ResultadoAuditoria, _fotografiar
+    from app.reconciliation.calculations import calcular
+    from app.reconciliation.matching import conciliar
+    from tests.test_matching import _ase, _c, _rep
+    repuestos = [_rep(str(1020000 + i), 300000, hoja=" HAROLD H.T", fecha="2026-05-01",
+                      total_cobrado=392989, reconocido=300000, mano_obra=92989,
+                      factura=str(90000 + i)) for i in range(cuantas)]
+    aseguradoras = [_ase(str(1020000 + i), 514957, partes=300000, mano_obra=92989,
+                         iva=74668, transporte=47300, periodo="2026-05") for i in range(cuantas)]
+    fotos = []
+    for orden in conciliar(_c(repuestos), _c(aseguradoras)):
+        a = orden.aseguradora
+        fin = calcular(orden.costo_repuestos, orden.valor_aseguradora,
+                       valor_repuestos_reconocido=a.valor_repuestos if a else None,
+                       valor_mano_obra=a.valor_mano_obra if a else None)
+        fotos.append(_fotografiar(orden, fin, "2026-09-21T06:00:00"))
+    return ResultadoAuditoria("2026-09-21T06:00:00", fotos, _c(repuestos), _c(aseguradoras), [], 0.1)
+
+
+def _entrar(cliente, usuario="gerente", clave=CLAVE):
+    return cliente.post("/entrar", data={"usuario": usuario, "clave": clave})
+
+
+def test_sin_sesion_no_se_ve_nada(cliente):
+    for ruta in ("/", "/ordenes", "/historial"):
+        r = cliente.get(ruta)
+        assert r.status_code == 302 and "/entrar" in r.headers["Location"]
+
+
+def test_contrasena_incorrecta_no_deja_entrar(cliente):
+    assert _entrar(cliente, clave="otra-cosa").status_code == 401
+    assert cliente.get("/").status_code == 302
+
+
+def test_usuario_inexistente_no_deja_entrar(cliente):
+    assert _entrar(cliente, usuario="nadie").status_code == 401
+
+
+def test_el_panel_muestra_las_cifras_de_la_ultima_corrida(cliente):
+    _entrar(cliente)
+    html = cliente.get("/").get_data(as_text=True)
+    assert "Lo gastado contra lo recibido" in html
+    assert "$735.000" in html          # gastado de las dos ordenes con contraparte
+    assert "2025-10" in html           # cobertura de la corrida
+
+
+def test_las_ordenes_se_filtran_por_veredicto(cliente):
+    _entrar(cliente)
+    html = cliente.get("/ordenes?veredicto=facturado_por_debajo&estado=todas").get_data(as_text=True)
+    assert "1017583" in html and "1017550" not in html
+
+
+def test_la_busqueda_encuentra_por_factura(cliente):
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&buscar=92616").get_data(as_text=True)
+    assert "1017550" in html and "1017583" not in html
+
+
+def test_marcar_una_orden_la_saca_de_pendientes_y_queda_en_el_historial(cliente, app):
+    _entrar(cliente)
+    r = cliente.post("/revision", data={"orden": "1017583", "estado": "verificada",
+                                        "nota": "hablado con el proveedor"})
+    assert r.status_code == 302
+    with app.motor_de_prueba.connect() as con:
+        estado = con.execute(select(base.revisiones.c.estado)
+                             .where(base.revisiones.c.orden_ceser == "1017583")).scalar()
+        evento = con.execute(select(base.historial_revision)).mappings().first()
+    assert estado == "verificada"
+    assert evento["por"] == "gerente" and evento["nota"] == "hablado con el proveedor"
+    assert "1017583" not in cliente.get("/ordenes?estado=pendiente").get_data(as_text=True)
+    assert "1017583" in cliente.get("/ordenes?estado=verificada").get_data(as_text=True)
+
+
+def test_no_se_puede_marcar_sin_sesion(cliente, app):
+    r = cliente.post("/revision", data={"orden": "1017583", "estado": "verificada"})
+    assert r.status_code == 302 and "/entrar" in r.headers["Location"]
+    with app.motor_de_prueba.connect() as con:
+        assert con.execute(select(base.revisiones)).first() is None
+
+
+def test_un_estado_inventado_se_rechaza(cliente):
+    _entrar(cliente)
+    assert cliente.post("/revision", data={"orden": "1017583", "estado": "aprobada"}).status_code == 400
+
+
+def test_el_historial_muestra_quien_y_cuando(cliente):
+    _entrar(cliente)
+    cliente.post("/revision", data={"orden": "1017550", "estado": "en_gestion"})
+    html = cliente.get("/historial").get_data(as_text=True)
+    assert "1017550" in html and "En gestión" in html and "gerente" in html
+
+
+def test_salud_responde_sin_sesion(cliente):
+    r = cliente.get("/salud")
+    assert r.status_code == 200 and r.json["ultima_corrida"]
+
+
+# --- Paginacion: una corrida trae cerca de 1.800 ordenes -------------------
+def test_la_lista_se_pagina_y_no_pinta_todo(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _muchas_ordenes(app.motor_de_prueba, 120))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas").get_data(as_text=True)
+    assert html.count('name="orden"') == 50          # una pagina, no las 120
+    assert "de <b>120</b> órdenes" in html
+    assert "Página <b>1</b> de 3" in html
+
+
+def test_la_segunda_pagina_trae_ordenes_distintas(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _muchas_ordenes(app.motor_de_prueba, 120))
+    _entrar(cliente)
+    import re
+    def ordenes_de(pagina):
+        html = cliente.get(f"/ordenes?estado=todas&pagina={pagina}").get_data(as_text=True)
+        return set(re.findall(r'name="orden" value="(\d+)"', html))
+    primera, segunda = ordenes_de(1), ordenes_de(2)
+    assert len(primera) == 50 and len(segunda) == 50
+    assert not (primera & segunda)
+
+
+def test_el_paginador_conserva_los_filtros(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _muchas_ordenes(app.motor_de_prueba, 120))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&veredicto=cuadra").get_data(as_text=True)
+    assert "veredicto=cuadra" in html and "pagina=2" in html
+
+
+def test_una_pagina_fuera_de_rango_no_rompe(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _muchas_ordenes(app.motor_de_prueba, 60))
+    _entrar(cliente)
+    for pagina in ("999", "0", "-3", "abc"):
+        assert cliente.get(f"/ordenes?estado=todas&pagina={pagina}").status_code == 200
+
+
+# --- Poder ver la contraseña al escribirla --------------------------------
+def test_la_pantalla_de_ingreso_permite_ver_la_clave(cliente):
+    html = cliente.get("/entrar").get_data(as_text=True)
+    assert "Mostrar la contraseña" in html
+    assert "type=\'text\' : \'password\'" in html or "'text' : 'password'" in html
+
+
+# --- Filtrar la tabla por fechas ------------------------------------------
+def _corrida_con_fechas(motor):
+    from app.reconciliation.audit import ResultadoAuditoria, _fotografiar
+    from app.reconciliation.calculations import calcular
+    from app.reconciliation.matching import conciliar
+    from tests.test_matching import _ase, _c, _rep
+    fechas = {"1030001": "2026-01-15", "1030002": "2026-04-20", "1030003": "2026-08-30"}
+    repuestos = [_rep(o, 300000, hoja=" HAROLD H.T", fecha=f, total_cobrado=392989,
+                      reconocido=300000, mano_obra=92989) for o, f in fechas.items()]
+    aseguradoras = [_ase(o, 514957, partes=300000, mano_obra=92989, iva=74668,
+                         transporte=47300, periodo=f[:7]) for o, f in fechas.items()]
+    fotos = []
+    for orden in conciliar(_c(repuestos), _c(aseguradoras)):
+        a = orden.aseguradora
+        fin = calcular(orden.costo_repuestos, orden.valor_aseguradora,
+                       valor_repuestos_reconocido=a.valor_repuestos if a else None)
+        fotos.append(_fotografiar(orden, fin, "2026-09-21T06:00:00"))
+    return ResultadoAuditoria("2026-09-21T06:00:00", fotos, _c(repuestos), _c(aseguradoras), [], 0.1)
+
+
+def test_la_tabla_se_filtra_por_rango_de_fechas(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_con_fechas(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&desde=2026-03-01&hasta=2026-06-30").get_data(as_text=True)
+    assert "1030002" in html
+    assert "1030001" not in html and "1030003" not in html
+
+
+def test_solo_desde_o_solo_hasta_tambien_funciona(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_con_fechas(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&desde=2026-04-01").get_data(as_text=True)
+    assert "1030002" in html and "1030003" in html and "1030001" not in html
+    html = cliente.get("/ordenes?estado=todas&hasta=2026-02-01").get_data(as_text=True)
+    assert "1030001" in html and "1030002" not in html
+
+
+def test_el_rango_se_conserva_al_cambiar_de_filtro_o_pagina(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _muchas_ordenes(app.motor_de_prueba, 120))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&desde=2026-01-01&hasta=2026-12-31").get_data(as_text=True)
+    assert "desde=2026-01-01" in html and "hasta=2026-12-31" in html
+    assert "Limpiar" in html
+
+
+def test_la_corrida_informa_su_rango_de_fechas(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_con_fechas(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas").get_data(as_text=True)
+    assert "2026-01-15" in html and "2026-08-30" in html
+
+
+# --- Ordenar por fecha en los dos sentidos --------------------------------
+def _fechas_en_pantalla(cliente, consulta):
+    import re
+    html = cliente.get(consulta).get_data(as_text=True)
+    return re.findall(r'<td class="l dim">(\d{4}-\d{2}-\d{2})</td>', html)
+
+
+def test_por_defecto_manda_lo_mas_reciente(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_con_fechas(app.motor_de_prueba))
+    _entrar(cliente)
+    fechas = _fechas_en_pantalla(cliente, "/ordenes?estado=todas")
+    assert fechas == sorted(fechas, reverse=True)
+    assert fechas[0] == "2026-08-30"
+
+
+def test_se_puede_invertir_el_orden(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_con_fechas(app.motor_de_prueba))
+    _entrar(cliente)
+    fechas = _fechas_en_pantalla(cliente, "/ordenes?estado=todas&dir=asc")
+    assert fechas == sorted(fechas)
+    assert fechas[0] == "2026-01-15"
+
+
+def test_el_encabezado_ofrece_el_orden_contrario(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_con_fechas(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas").get_data(as_text=True)
+    assert "dir=asc" in html and "▼" in html
+    html = cliente.get("/ordenes?estado=todas&dir=asc").get_data(as_text=True)
+    assert "dir=desc" in html and "▲" in html
+
+
+def test_el_orden_se_conserva_al_paginar(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _muchas_ordenes(app.motor_de_prueba, 120))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&dir=asc").get_data(as_text=True)
+    assert "dir=asc" in html and "pagina=2" in html

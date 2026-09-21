@@ -1,0 +1,66 @@
+{% extends "base.html" %}{% block titulo %}Resumen · Auditoría CESER{% endblock %}
+{% block cuerpo %}
+<main>
+  <div>
+    <h1>Lo gastado contra lo recibido</h1>
+    <p class="sub">Última auditoría: {{ corrida.fecha_analisis.replace("T", " ")[:16] }} ·
+      archivos tomados de {{ corrida.origen_archivos }} · período cubierto
+      {{ corrida.cobertura_desde }} a {{ corrida.cobertura_hasta }}
+      {%- if not corrida.tech_consultado %} · sin conexión al sistema TECH{% endif %}</p>
+  </div>
+
+  <div class="tarjetas">
+    <div class="tarjeta"><span class="k">Gastado en repuestos</span>
+      <span class="v">{{ resumen.gastado|pesos }}</span>
+      <span class="d">Lo que cobraron los proveedores, con IVA</span></div>
+    <div class="tarjeta"><span class="k">Facturado a aseguradoras</span>
+      <span class="v">{{ resumen.facturado|pesos }}</span>
+      <span class="d">Incluye {{ resumen.iva|pesos }} de IVA y {{ resumen.fletes|pesos }} de fletes</span></div>
+    <div class="tarjeta"><span class="k">Ingreso neto</span>
+      <span class="v">{{ resumen.ingreso_neto|pesos }}</span>
+      <span class="d">Sin IVA ni fletes</span></div>
+    <div class="tarjeta destaca"><span class="k">Utilidad</span>
+      <span class="v">{{ resumen.utilidad|pesos }}</span>
+      <span class="d">{{ resumen.margen|porcentaje }} sobre el ingreso neto · {{ resumen.ordenes_comparables }} órdenes</span></div>
+    <div class="tarjeta riesgo"><span class="k">Gastado sin respaldo de cobro</span>
+      <span class="v">{{ resumen.gastado_sin_contraparte|pesos }}</span>
+      <span class="d">{{ resumen.sin_contraparte }} órdenes sin contraparte en el archivo</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>Órdenes para revisar</h2>
+    <div class="filtros">
+      {% for clave, n in veredictos.items() %}{% if n and clave in ('residuo','facturado_por_debajo','sin_desglose') %}
+        <a class="chip" href="{{ url_for('lista_ordenes', veredicto=clave, estado='pendiente') }}">
+          {{ VEREDICTOS[clave][0] }} · {{ n }}</a>
+      {% endif %}{% endfor %}
+      {% for estado, n in estados.items() %}
+        <a class="chip" href="{{ url_for('lista_ordenes', estado=estado) }}">{{ NOMBRE_ESTADO[estado] }} · {{ n }}</a>
+      {% endfor %}
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th class="l">Situación</th><th>Órdenes</th><th class="l">Severidad</th></tr></thead>
+      <tbody>{% for s in situaciones %}
+        <tr><td class="l">{{ s.etiqueta }}</td><td>{{ s.n }}</td>
+            <td class="l"><span class="pill {{ s.severidad }}">{{ s.severidad }}</span></td></tr>
+      {% else %}<tr><td class="vacio" colspan="3">Sin situaciones en esta corrida.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+
+  <div class="panel">
+    <h2>Mes a mes</h2>
+    <p class="nota">Gastado, facturado y utilidad cuentan solo las órdenes con contraparte, que son
+      las comparables. La última columna dice cuántas quedaron fuera de esa cuenta y cuánto se gastó en ellas.</p>
+    <div class="scroll"><table>
+      <thead><tr><th class="l">Mes</th><th>Órdenes</th><th>Gastado</th><th>Facturado</th>
+        <th>Ingreso neto</th><th>Utilidad</th><th>Margen</th><th class="l">Sin contraparte</th></tr></thead>
+      <tbody>{% for m in dinero %}
+        <tr><td class="l orden">{{ m.mes }}</td><td>{{ m.ordenes }}</td><td>{{ m.gastado|pesos }}</td>
+          <td>{{ m.facturado|pesos }}</td><td>{{ m.ingreso_neto|pesos }}</td>
+          <td><b>{{ m.utilidad|pesos }}</b></td><td>{{ m.margen|porcentaje }}</td>
+          <td class="l">{% if m.ordenes_sin_contraparte %}<span class="pill plain">{{ m.ordenes_sin_contraparte }} · {{ m.gastado_sin_contraparte|pesos }}</span>{% else %}<span class="dim">—</span>{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+  </div>
+</main>
+{% endblock %}
