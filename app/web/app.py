@@ -99,7 +99,10 @@ def enlaces_a_la_hoja(url_archivo: str | None, ubicacion: str | None,
         gid = por_nombre.get(hoja.strip().casefold())
         destino = url_archivo
         if gid is not None:
-            destino += f"#gid={gid}" + (f"&range=A{fila}" if fila else "")
+            # Mismo formato que produce Google al abrir una pestaña: el gid va en
+            # la direccion y tambien despues del #. Con archivos de Office hace
+            # falta el primero para que abra la pestaña correcta.
+            destino += f"?gid={gid}#gid={gid}" + (f"&range=A{fila}" if fila else "")
         enlaces.append({
             "texto": f"{hoja} fila {fila}" if fila else hoja,
             "url": destino,

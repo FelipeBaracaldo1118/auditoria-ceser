@@ -410,7 +410,7 @@ def test_se_enlaza_a_la_pestana_y_la_fila_cuando_se_conoce_el_gid():
     from app.web.app import enlaces_a_la_hoja
     url = "https://docs.google.com/spreadsheets/d/ABC/edit"
     e, = enlaces_a_la_hoja(url, " HAROLD H.T fila 1806", {" HAROLD H.T": 991})
-    assert e["url"] == url + "#gid=991&range=A1806"
+    assert e["url"] == url + "?gid=991#gid=991&range=A1806"
     assert e["texto"] == "HAROLD H.T fila 1806" or "1806" in e["texto"]
     assert e["exacto"]
 
