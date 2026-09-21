@@ -21,6 +21,10 @@ from app.web import consultas
 
 logger = logging.getLogger(__name__)
 
+# El panel resume la hoja del flujo definido con el area; al pinchar un mes se
+# filtra la lista por la misma hoja, para que los numeros coincidan.
+HOJA_DEL_PANEL = "HAROLD H.T"
+
 INTENTOS_MAXIMOS = 8            # por usuario y ventana
 VENTANA_SEGUNDOS = 300
 _intentos: dict[str, list[float]] = {}
@@ -45,6 +49,25 @@ def pesos(valor) -> str:
     return f"{'−' if valor < 0 else ''}${entero}"
 
 
+MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio",
+         "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+
+
+def mes_largo(periodo: str | None) -> str:
+    """'2026-04' -> 'abril 2026'."""
+    partes = str(periodo or "").split("-")
+    if len(partes) != 2 or not partes[1].isdigit() or not 1 <= int(partes[1]) <= 12:
+        return periodo or "—"
+    return f"{MESES[int(partes[1]) - 1]} {partes[0]}"
+
+
+def limites_del_mes(periodo: str) -> tuple[str, str]:
+    """Primer y ultimo dia de 'AAAA-MM', para enlazar al filtro por fechas."""
+    from calendar import monthrange
+    anio, mes = int(periodo[:4]), int(periodo[5:7])
+    return f"{periodo}-01", f"{periodo}-{monthrange(anio, mes)[1]:02d}"
+
+
 def porcentaje(valor) -> str:
     return "—" if valor is None else f"{Decimal(str(valor)):.2f}".replace(".", ",") + " %"
 
@@ -63,6 +86,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
     motor = base.motor(settings.audit_db_url)
     app.jinja_env.filters["pesos"] = pesos
     app.jinja_env.filters["porcentaje"] = porcentaje
+    app.jinja_env.filters["mes_largo"] = mes_largo
 
     def requiere_sesion(vista):
         @wraps(vista)
@@ -119,7 +143,11 @@ def crear_app(settings: Settings | None = None) -> Flask:
                 situaciones=consultas.conteo_situaciones(con, corrida["id"]),
                 veredictos=consultas.conteo_veredictos(con, corrida["id"]),
                 estados=consultas.conteo_estados(con, corrida["id"]),
-                dinero=base.dinero_por_mes(motor, corrida["id"], hoja_repuestos="HAROLD H.T"),
+                dinero=[dict(m, desde=limites_del_mes(m["mes"])[0],
+                             hasta=limites_del_mes(m["mes"])[1])
+                        for m in base.dinero_por_mes(motor, corrida["id"],
+                                                     hoja_repuestos=HOJA_DEL_PANEL)],
+                hoja_panel=HOJA_DEL_PANEL,
                 VEREDICTOS=consultas.VEREDICTOS, NOMBRE_ESTADO=consultas.NOMBRE_ESTADO)
 
     @app.get("/ordenes")
@@ -131,6 +159,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
         desde = (request.args.get("desde") or "").strip()
         hasta = (request.args.get("hasta") or "").strip()
         direccion = "asc" if request.args.get("dir") == "asc" else "desc"
+        hoja = (request.args.get("hoja") or "").strip()
         try:
             pagina = max(1, int(request.args.get("pagina", 1)))
         except ValueError:
@@ -139,7 +168,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
             corrida = _corrida(con)
             filas, total = consultas.listar_ordenes(con, corrida["id"], veredicto, estado,
                                                     buscar, pagina, desde=desde, hasta=hasta,
-                                                    direccion=direccion)
+                                                    direccion=direccion, hoja=hoja)
             primera, ultima = consultas.rango_de_fechas(con, corrida["id"])
             paginas = max(1, -(-total // consultas.POR_PAGINA))
             detalle = consultas.situaciones_de(con, corrida["id"], [f["orden_ceser"] for f in filas])
@@ -147,6 +176,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
                 "ordenes.html", corrida=corrida, filas=filas, detalle=detalle,
                 veredicto=veredicto, estado=estado, buscar=buscar,
                 desde=desde, hasta=hasta, primera=primera, ultima=ultima, direccion=direccion,
+                hoja=hoja,
                 pagina=min(pagina, paginas), paginas=paginas, total=total,
                 veredictos=consultas.conteo_veredictos(con, corrida["id"]),
                 estados=consultas.conteo_estados(con, corrida["id"]),

@@ -50,15 +50,21 @@
   <div class="panel">
     <h2>Mes a mes</h2>
     <p class="nota">Gastado, facturado y utilidad cuentan solo las órdenes con contraparte, que son
-      las comparables. La última columna dice cuántas quedaron fuera de esa cuenta y cuánto se gastó en ellas.</p>
+      las comparables. La última columna dice cuántas quedaron fuera de esa cuenta y cuánto se gastó
+      en ellas. <b>Pulsa un mes</b> para ver esas órdenes sin contraparte y revisarlas.</p>
     <div class="scroll"><table>
       <thead><tr><th class="l">Mes</th><th>Órdenes</th><th>Gastado</th><th>Facturado</th>
         <th>Ingreso neto</th><th>Utilidad</th><th>Margen</th><th class="l">Sin contraparte</th></tr></thead>
       <tbody>{% for m in dinero %}
-        <tr><td class="l orden">{{ m.mes }}</td><td>{{ m.ordenes }}</td><td>{{ m.gastado|pesos }}</td>
+        {% set a_sin_contraparte = url_for('lista_ordenes', veredicto='sin_contraparte',
+             estado='todas', hoja=hoja_panel, desde=m.desde, hasta=m.hasta) %}
+        <tr><td class="l orden"><a href="{{ a_sin_contraparte }}"
+              title="Ver las {{ m.ordenes_sin_contraparte }} órdenes sin contraparte de {{ m.mes|mes_largo }}">{{ m.mes|mes_largo }}</a></td>
+          <td>{{ m.ordenes }}</td><td>{{ m.gastado|pesos }}</td>
           <td>{{ m.facturado|pesos }}</td><td>{{ m.ingreso_neto|pesos }}</td>
           <td><b>{{ m.utilidad|pesos }}</b></td><td>{{ m.margen|porcentaje }}</td>
-          <td class="l">{% if m.ordenes_sin_contraparte %}<span class="pill plain">{{ m.ordenes_sin_contraparte }} · {{ m.gastado_sin_contraparte|pesos }}</span>{% else %}<span class="dim">—</span>{% endif %}</td></tr>
+          <td class="l">{% if m.ordenes_sin_contraparte %}<a class="pill warn" href="{{ a_sin_contraparte }}"
+                >{{ m.ordenes_sin_contraparte }} · {{ m.gastado_sin_contraparte|pesos }}</a>{% else %}<span class="dim">—</span>{% endif %}</td></tr>
       {% endfor %}</tbody>
     </table></div>
   </div>

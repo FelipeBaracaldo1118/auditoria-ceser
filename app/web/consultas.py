@@ -95,7 +95,7 @@ POR_PAGINA = 50
 def listar_ordenes(con, corrida_id: int, veredicto: str = "todas", estado: str = "pendiente",
                    buscar: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA,
                    desde: str = "", hasta: str = "",
-                   direccion: str = "desc") -> tuple[list[dict], int]:
+                   direccion: str = "desc", hoja: str = "") -> tuple[list[dict], int]:
     """Una pagina de ordenes y el total que cumple los filtros.
 
     Se pagina porque una corrida trae cerca de 1.800 ordenes: pintarlas todas
@@ -115,6 +115,8 @@ def listar_ordenes(con, corrida_id: int, veredicto: str = "todas", estado: str =
                            | o.factura_a_la_aseguradora.like(patron))
     # Por la fecha en que el proveedor facturo. Las fechas se guardan como
     # AAAA-MM-DD, asi que comparar como texto ordena igual que como fecha.
+    if hoja:
+        condiciones.append(o.hoja_repuestos.contains(hoja))
     if desde:
         condiciones.append(o.fecha_factura_proveedor >= desde)
     if hasta:

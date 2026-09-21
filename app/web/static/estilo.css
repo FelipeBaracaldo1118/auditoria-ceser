@@ -75,3 +75,8 @@ border:1px solid var(--line);border-radius:8px;padding:26px}
 
 th a.ordenar{color:var(--accent);text-decoration:none;white-space:nowrap}
 th a.ordenar:hover{text-decoration:underline}
+
+a.pill{text-decoration:none}
+a.pill:hover{filter:brightness(.94)}
+td.l a{color:var(--accent);text-decoration:none}
+td.l a:hover{text-decoration:underline}

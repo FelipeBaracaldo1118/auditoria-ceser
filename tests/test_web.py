@@ -266,3 +266,64 @@ def test_el_orden_se_conserva_al_paginar(cliente, app):
     _entrar(cliente)
     html = cliente.get("/ordenes?estado=todas&dir=asc").get_data(as_text=True)
     assert "dir=asc" in html and "pagina=2" in html
+
+
+# --- Desde el panel se llega a las ordenes sin contraparte del mes ---------
+def _corrida_mixta(motor):
+    """Dos meses, cada uno con una orden cruzada y una sin contraparte."""
+    from app.reconciliation.audit import ResultadoAuditoria, _fotografiar
+    from app.reconciliation.calculations import calcular
+    from app.reconciliation.matching import conciliar
+    from tests.test_matching import _ase, _c, _rep
+    repuestos = [
+        _rep("1040001", 300000, hoja=" HAROLD H.T", fecha="2026-04-10", total_cobrado=392989,
+             reconocido=300000, mano_obra=92989),
+        _rep("1040002", 250000, hoja=" HAROLD H.T", fecha="2026-04-22", total_cobrado=342989),
+        _rep("1050001", 300000, hoja=" HAROLD H.T", fecha="2026-05-11", total_cobrado=392989,
+             reconocido=300000, mano_obra=92989),
+        _rep("1050002", 180000, hoja=" HAROLD H.T", fecha="2026-05-27", total_cobrado=272989),
+    ]
+    aseguradoras = [
+        _ase("1040001", 514957, partes=300000, mano_obra=92989, iva=74668, transporte=47300, periodo="2026-04"),
+        _ase("1050001", 514957, partes=300000, mano_obra=92989, iva=74668, transporte=47300, periodo="2026-05"),
+    ]
+    fotos = []
+    for orden in conciliar(_c(repuestos), _c(aseguradoras)):
+        a = orden.aseguradora
+        fin = calcular(orden.costo_repuestos, orden.valor_aseguradora,
+                       valor_repuestos_reconocido=a.valor_repuestos if a else None)
+        fotos.append(_fotografiar(orden, fin, "2026-09-21T06:00:00"))
+    return ResultadoAuditoria("2026-09-21T06:00:00", fotos, _c(repuestos), _c(aseguradoras), [], 0.1)
+
+
+def test_el_panel_muestra_los_meses_con_nombre_y_enlazados(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/").get_data(as_text=True)
+    assert "abril 2026" in html and "mayo 2026" in html
+    assert "veredicto=sin_contraparte" in html
+    assert "desde=2026-04-01" in html and "hasta=2026-04-30" in html
+
+
+def test_al_pulsar_un_mes_se_ven_solo_sus_ordenes_sin_contraparte(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?veredicto=sin_contraparte&estado=todas&hoja=HAROLD+H.T"
+                       "&desde=2026-04-01&hasta=2026-04-30").get_data(as_text=True)
+    assert "1040002" in html                      # la de abril sin contraparte
+    assert "1050002" not in html                  # la de mayo no
+    assert "1040001" not in html                  # la cruzada tampoco
+
+
+def test_el_filtro_de_hoja_se_puede_quitar(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&hoja=HAROLD+H.T").get_data(as_text=True)
+    assert "Hoja: HAROLD H.T" in html and "Limpiar todo" in html
+
+
+def test_una_hoja_inexistente_no_devuelve_nada(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&hoja=INEXISTENTE").get_data(as_text=True)
+    assert "Ninguna orden coincide" in html
