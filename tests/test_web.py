@@ -291,7 +291,10 @@ def _corrida_mixta(motor):
     for orden in conciliar(_c(repuestos), _c(aseguradoras)):
         a = orden.aseguradora
         fin = calcular(orden.costo_repuestos, orden.valor_aseguradora,
-                       valor_repuestos_reconocido=a.valor_repuestos if a else None)
+                       valor_repuestos_reconocido=a.valor_repuestos if a else None,
+                       valor_mano_obra=a.valor_mano_obra if a else None,
+                       valor_repuestos_con_iva=a.valor_repuestos_con_iva if a else None,
+                       valor_mano_obra_con_iva=a.valor_mano_obra_con_iva if a else None)
         fotos.append(_fotografiar(orden, fin, "2026-09-21T06:00:00"))
     return ResultadoAuditoria("2026-09-21T06:00:00", fotos, _c(repuestos), _c(aseguradoras), [], 0.1)
 
@@ -319,7 +322,7 @@ def test_el_filtro_de_hoja_se_puede_quitar(cliente, app):
     base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
     _entrar(cliente)
     html = cliente.get("/ordenes?estado=todas&hoja=HAROLD+H.T").get_data(as_text=True)
-    assert "Hoja: HAROLD H.T" in html and "Limpiar todo" in html
+    assert "Hoja: HAROLD H.T" in html and "Limpiar" in html
 
 
 def test_una_hoja_inexistente_no_devuelve_nada(cliente, app):
@@ -327,3 +330,35 @@ def test_una_hoja_inexistente_no_devuelve_nada(cliente, app):
     _entrar(cliente)
     html = cliente.get("/ordenes?estado=todas&hoja=INEXISTENTE").get_data(as_text=True)
     assert "Ninguna orden coincide" in html
+
+
+# --- La lista abre en lo que hay que revisar, no en todo -------------------
+def test_por_defecto_solo_se_ven_las_ordenes_con_algo_que_revisar(cliente, app):
+    """De 1.787 ordenes reales solo 257 tienen situaciones: abrir con todas entierra el trabajo."""
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas").get_data(as_text=True)
+    assert "1040002" in html          # sin contraparte: la auditoria la marco
+    assert "1040001" not in html      # cuadra y no tiene nada que revisar
+
+
+def test_se_pueden_ver_todas_si_se_pide(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
+    assert "1040001" in html and "1040002" in html
+
+
+def test_los_dos_recuentos_se_muestran(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes").get_data(as_text=True)
+    assert "Para revisar · 2" in html and "Todas · 4" in html
+
+
+def test_el_detalle_viene_plegado_y_no_pesa_la_pagina(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas").get_data(as_text=True)
+    assert '<tr class="detalle" hidden>' in html
+    assert "Pulsa una fila para ver su detalle" in html

@@ -1,76 +1,95 @@
 {% extends "base.html" %}{% block titulo %}Órdenes · Auditoría CESER{% endblock %}
+{% set enlaces = {'veredicto': veredicto, 'estado': estado, 'buscar': buscar, 'desde': desde,
+                  'hasta': hasta, 'dir': direccion, 'hoja': hoja, 'atencion': atencion} %}
 {% block cuerpo %}
 <main>
   <div>
     <h1>Órdenes</h1>
-    <p class="sub">Corrida del {{ corrida.fecha_analisis.replace("T"," ")[:16] }}. La columna de la
-      izquierda es lo que nos cobró el proveedor; la de la derecha, lo que le cobramos a la aseguradora.</p>
+    <p class="sub">Corrida del {{ corrida.fecha_analisis.replace("T"," ")[:16] }}.
+      Pulsa una fila para ver su detalle completo y el porqué.</p>
   </div>
 
   <div class="panel">
     <div class="filtros">
-      <span class="nota"><b>Veredicto</b></span>
-      <a class="chip {% if veredicto=='todas' %}activo{% endif %}" href="{{ url_for('lista_ordenes', estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja) }}">Todas</a>
-      {% for clave, n in veredictos.items() %}{% if n %}
-        <a class="chip {% if veredicto==clave %}activo{% endif %}"
-           href="{{ url_for('lista_ordenes', veredicto=clave, estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja) }}">{{ VEREDICTOS[clave][0] }} · {{ n }}</a>
-      {% endif %}{% endfor %}
+      <span class="etiqueta-filtro">Qué ver</span>
+      <a class="chip {% if atencion == 'si' %}activo{% endif %}"
+         href="{{ url_for('lista_ordenes', **dict(enlaces, atencion='si', pagina=1)) }}">Para revisar · {{ cuenta_atencion.si }}</a>
+      <a class="chip {% if atencion == 'todas' %}activo{% endif %}"
+         href="{{ url_for('lista_ordenes', **dict(enlaces, atencion='todas', pagina=1)) }}">Todas · {{ cuenta_atencion.todas }}</a>
     </div>
+
     <div class="filtros">
-      <span class="nota"><b>Revisión</b></span>
+      <span class="etiqueta-filtro">Revisión</span>
       {% for clave, nombre in NOMBRE_ESTADO.items() %}
-        <a class="chip {% if estado==clave %}activo{% endif %}"
-           href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=clave, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja) }}">{{ nombre }} · {{ estados[clave] }}</a>
+        <a class="chip {% if estado == clave %}activo{% endif %}"
+           href="{{ url_for('lista_ordenes', **dict(enlaces, estado=clave, pagina=1)) }}">{{ nombre }} · {{ estados[clave] }}</a>
       {% endfor %}
-      <a class="chip {% if estado=='todas' %}activo{% endif %}"
-         href="{{ url_for('lista_ordenes', veredicto=veredicto, estado='todas', buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja) }}">Todas</a>
+      <a class="chip {% if estado == 'todas' %}activo{% endif %}"
+         href="{{ url_for('lista_ordenes', **dict(enlaces, estado='todas', pagina=1)) }}">Todas</a>
     </div>
-    <form class="filtros" method="get" action="{{ url_for('lista_ordenes') }}">
-      <input type="hidden" name="veredicto" value="{{ veredicto }}">
-      <input type="hidden" name="estado" value="{{ estado }}">
-      <input type="hidden" name="dir" value="{{ direccion }}">
-      <input type="hidden" name="hoja" value="{{ hoja }}">
-      <span class="nota"><b>Fecha en que facturó el proveedor</b></span>
-      <label class="nota">desde
-        <input type="date" name="desde" value="{{ desde }}" min="{{ primera or '' }}" max="{{ ultima or '' }}"></label>
-      <label class="nota">hasta
-        <input type="date" name="hasta" value="{{ hasta }}" min="{{ primera or '' }}" max="{{ ultima or '' }}"></label>
-      <input name="buscar" value="{{ buscar }}" placeholder="Orden o factura…" aria-label="Buscar">
-      <button type="submit">Aplicar</button>
-      {% if hoja %}
-        <a class="chip activo" title="Quitar el filtro de hoja"
-           href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado, desde=desde, hasta=hasta, buscar=buscar, dir=direccion) }}">Hoja: {{ hoja }} ✕</a>
-      {% endif %}
-      {% if desde or hasta or buscar or hoja %}
-        <a class="chip" href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado) }}">Limpiar todo</a>
-      {% endif %}
-      {% if primera %}<span class="nota">la corrida va del {{ primera }} al {{ ultima }}</span>{% endif %}
-    </form>
-    </div>
+
+    <details class="mas-filtros" {% if veredicto != 'todas' or desde or hasta or buscar or hoja %}open{% endif %}>
+      <summary>Más filtros</summary>
+      <div class="filtros">
+        <span class="etiqueta-filtro">Veredicto</span>
+        <a class="chip {% if veredicto == 'todas' %}activo{% endif %}"
+           href="{{ url_for('lista_ordenes', **dict(enlaces, veredicto='todas', pagina=1)) }}">Todos</a>
+        {% for clave, n in veredictos.items() %}{% if n %}
+          <a class="chip {% if veredicto == clave %}activo{% endif %}"
+             href="{{ url_for('lista_ordenes', **dict(enlaces, veredicto=clave, pagina=1)) }}">{{ VEREDICTOS[clave][0] }} · {{ n }}</a>
+        {% endif %}{% endfor %}
+      </div>
+      <form class="filtros" method="get" action="{{ url_for('lista_ordenes') }}">
+        {% for k, v in enlaces.items() %}{% if k not in ('desde', 'hasta', 'buscar') %}
+          <input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+        <span class="etiqueta-filtro">Fecha del proveedor</span>
+        <label class="nota">desde <input type="date" name="desde" value="{{ desde }}"
+               min="{{ primera or '' }}" max="{{ ultima or '' }}"></label>
+        <label class="nota">hasta <input type="date" name="hasta" value="{{ hasta }}"
+               min="{{ primera or '' }}" max="{{ ultima or '' }}"></label>
+        <input name="buscar" value="{{ buscar }}" placeholder="Orden o factura…" aria-label="Buscar">
+        <button type="submit">Aplicar</button>
+        {% if hoja %}
+          <a class="chip activo" href="{{ url_for('lista_ordenes', **dict(enlaces, hoja='')) }}"
+             title="Quitar el filtro de hoja">Hoja: {{ hoja }} ✕</a>
+        {% endif %}
+        {% if desde or hasta or buscar or hoja or veredicto != 'todas' %}
+          <a class="chip" href="{{ url_for('lista_ordenes', estado=estado, atencion=atencion) }}">Limpiar</a>
+        {% endif %}
+        {% if primera %}<span class="nota">la corrida va del {{ primera }} al {{ ultima }}</span>{% endif %}
+      </form>
+    </details>
   </div>
 
-  <div class="scroll"><table>
+  <div class="scroll"><table class="ordenes">
     <thead>
-      <tr><th class="l">&nbsp;</th><th class="l" colspan="5">Proveedor</th><th class="l" colspan="5">Aseguradora</th><th colspan="2">Contraste</th><th colspan="2">&nbsp;</th></tr>
-      <tr><th class="l">Orden</th><th class="l">Factura</th><th class="l"><a class="ordenar" href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir='asc' if direccion == 'desc' else 'desc') }}"
-           title="{{ 'Ver las mas antiguas primero' if direccion == 'desc' else 'Ver las mas recientes primero' }}">Fecha {{ '▼' if direccion == 'desc' else '▲' }}</a></th><th>Costo</th><th>Repuesto</th><th>Total cobrado</th>
-        <th class="l">Factura</th><th class="l">Mes</th><th>Repuesto</th><th>IVA</th><th>Total</th>
-        <th>Esperado</th><th>Residuo</th><th class="l">Veredicto</th><th class="l">Revisión</th></tr>
+      <tr>
+        <th class="l">Orden</th>
+        <th class="l"><a class="ordenar" href="{{ url_for('lista_ordenes', **dict(enlaces, dir='asc' if direccion == 'desc' else 'desc')) }}"
+              title="{{ 'Ver las más antiguas primero' if direccion == 'desc' else 'Ver las más recientes primero' }}">Fecha {{ '▼' if direccion == 'desc' else '▲' }}</a></th>
+        <th>Nos cobraron</th>
+        <th>Cobramos</th>
+        <th>Facturado</th>
+        <th>Diferencia</th>
+        <th class="l">Veredicto</th>
+        <th class="l">Revisión</th>
+      </tr>
     </thead>
     <tbody>
     {% for f in filas %}
-      {% set invertido = f.mes_facturado_a_la_aseguradora and f.fecha_factura_proveedor and f.mes_facturado_a_la_aseguradora < f.fecha_factura_proveedor[:7] %}
-      <tr {% if f.estado_revision != 'pendiente' %}class="revisada"{% endif %}>
-        <td class="l orden">{% set enlace = url_de_orden(f.orden_ceser) %}{% if enlace %}<a href="{{ enlace }}" target="_blank" rel="noopener" title="Consultar en el sistema">{{ f.orden_ceser }}</a>{% else %}{{ f.orden_ceser }}{% endif %}</td>
-        <td class="l">{{ f.factura_proveedor or "—" }}</td><td class="l dim">{{ f.fecha_factura_proveedor or "—" }}</td>
-        <td>{{ f.costo_repuestos_archivo|pesos }}</td><td>{{ f.repuestos_cobrados_hoja_repuestos|pesos }}</td>
-        <td><b>{{ f.total_cobrado_hoja_repuestos|pesos }}</b></td>
-        <td class="l">{{ f.factura_a_la_aseguradora or "—" }}</td>
-        <td class="l {% if invertido %}invertido{% else %}dim{% endif %}"
-            {% if invertido %}title="Se le cobró a la aseguradora antes de que el proveedor nos facturara"{% endif %}>{{ f.mes_facturado_a_la_aseguradora or "—" }}</td>
-        <td>{{ f.repuestos_reconocidos_archivo|pesos }}</td><td class="dim">{{ f.iva_archivo_aseguradora|pesos }}</td>
-        <td><b>{{ f.valor_total_archivo_aseguradora|pesos }}</b></td>
-        <td class="dim">{{ f.esperado_del_cruce|pesos }}</td><td>{{ f.residuo_del_cruce|pesos }}</td>
+      {% set invertido = f.mes_facturado_a_la_aseguradora and f.fecha_factura_proveedor
+                         and f.mes_facturado_a_la_aseguradora < f.fecha_factura_proveedor[:7] %}
+      <tr class="row{% if f.estado_revision != 'pendiente' %} revisada{% endif %}"
+          tabindex="0" aria-expanded="false" title="Pulsa para ver el detalle">
+        <td class="l orden">{% set enlace = url_de_orden(f.orden_ceser) %}
+          <span class="chevron" aria-hidden="true">›</span>
+          {% if enlace %}<a href="{{ enlace }}" target="_blank" rel="noopener"
+             title="Consultar la orden en el sistema">{{ f.orden_ceser }}</a>{% else %}{{ f.orden_ceser }}{% endif %}</td>
+        <td class="l dim">{{ f.fecha_factura_proveedor or "—" }}</td>
+        <td>{{ f.costo_repuestos_archivo|pesos }}</td>
+        <td>{{ f.total_cobrado_hoja_repuestos|pesos }}</td>
+        <td>{{ f.valor_total_archivo_aseguradora|pesos }}</td>
+        <td class="{% if f.veredicto_del_cruce == 'facturado_por_debajo' %}resid-alert{% elif f.veredicto_del_cruce == 'residuo' %}resid-warn{% else %}dim{% endif %}">{{ f.residuo_del_cruce|pesos }}</td>
         <td class="l"><span class="pill {{ VEREDICTOS[f.veredicto_del_cruce][1] }}">{{ VEREDICTOS[f.veredicto_del_cruce][0] }}</span></td>
         <td class="l">
           <form class="rev" method="post" action="{{ url_for('marcar_revision') }}">
@@ -78,24 +97,38 @@
             <input type="hidden" name="volver" value="{{ request.full_path }}">
             <select name="estado" aria-label="Estado de revisión de {{ f.orden_ceser }}">
               {% for clave, nombre in NOMBRE_ESTADO.items() %}
-                <option value="{{ clave }}" {% if f.estado_revision==clave %}selected{% endif %}>{{ nombre }}</option>
+                <option value="{{ clave }}" {% if f.estado_revision == clave %}selected{% endif %}>{{ nombre }}</option>
               {% endfor %}
             </select><button type="submit">Guardar</button>
           </form>
         </td>
       </tr>
-      {% if detalle.get(f.orden_ceser) %}
-      <tr class="detalle"><td colspan="15">
-        {% for s in detalle[f.orden_ceser] %}
+      <tr class="detalle" hidden><td colspan="8">
+        {% for s in detalle.get(f.orden_ceser, []) %}
           <p><span class="pill {{ s.severidad }}">{{ s.etiqueta }}</span> {{ s.descripcion }}</p>
+        {% else %}
+          <p class="nota">Sin novedades: esta orden cuadra.</p>
         {% endfor %}
+        <div class="ficha">
+          <span><b>Proveedor</b> factura {{ f.factura_proveedor or "—" }} del {{ f.fecha_factura_proveedor or "—" }}</span>
+          <span><b>Aseguradora</b> factura {{ f.factura_a_la_aseguradora or "—" }}
+            en <span class="{% if invertido %}invertido{% endif %}">{{ f.mes_facturado_a_la_aseguradora or "—" }}</span>
+            {%- if invertido %} · se cobró antes de que el proveedor facturara{% endif %}</span>
+          <span><b>Repuesto</b> {{ f.repuestos_cobrados_hoja_repuestos|pesos }} en la hoja ·
+            {{ f.repuestos_reconocidos_archivo|pesos }} en el archivo</span>
+          <span><b>Mano de obra</b> {{ f.mano_obra_hoja_repuestos|pesos }}</span>
+          <span><b>IVA</b> {{ f.iva_archivo_aseguradora|pesos }} · <b>fletes</b> {{ f.transporte_columna_archivo|pesos }}</span>
+          <span><b>Esperado</b> {{ f.esperado_del_cruce|pesos }} · <b>facturado</b> {{ f.valor_total_archivo_aseguradora|pesos }}</span>
+          <span><b>Margen</b> {{ f.margen_del_repuesto_con_iva|porcentaje }} sobre el repuesto</span>
+          <span><b>Hojas</b> {{ f.hoja_repuestos or "—" }} · {{ f.hoja_aseguradora or "—" }}</span>
+        </div>
       </td></tr>
-      {% endif %}
     {% else %}
-      <tr><td class="vacio" colspan="15">Ninguna orden coincide con esos filtros.</td></tr>
+      <tr><td class="vacio" colspan="8">Ninguna orden coincide con estos filtros.</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
+
   <div class="paginador">
     <span class="nota">
       {% if total %}Mostrando {{ (pagina - 1) * 50 + 1 }}–{{ (pagina - 1) * 50 + filas|length }}
@@ -104,16 +137,37 @@
     {% if paginas > 1 %}
     <span class="paginas">
       {% if pagina > 1 %}
-        <a class="chip" href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja, pagina=1) }}">« Primera</a>
-        <a class="chip" href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja, pagina=pagina-1) }}">‹ Anterior</a>
+        <a class="chip" href="{{ url_for('lista_ordenes', **dict(enlaces, pagina=1)) }}">« Primera</a>
+        <a class="chip" href="{{ url_for('lista_ordenes', **dict(enlaces, pagina=pagina-1)) }}">‹ Anterior</a>
       {% endif %}
       <span class="nota">Página <b>{{ pagina }}</b> de {{ paginas }}</span>
       {% if pagina < paginas %}
-        <a class="chip" href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja, pagina=pagina+1) }}">Siguiente ›</a>
-        <a class="chip" href="{{ url_for('lista_ordenes', veredicto=veredicto, estado=estado, buscar=buscar, desde=desde, hasta=hasta, dir=direccion, hoja=hoja, pagina=paginas) }}">Última »</a>
+        <a class="chip" href="{{ url_for('lista_ordenes', **dict(enlaces, pagina=pagina+1)) }}">Siguiente ›</a>
+        <a class="chip" href="{{ url_for('lista_ordenes', **dict(enlaces, pagina=paginas)) }}">Última »</a>
       {% endif %}
     </span>
     {% endif %}
   </div>
 </main>
+
+<script>
+/* Desplegar el detalle de una fila. El enlace al sistema y el control de
+   revision no deben disparar el despliegue. */
+document.querySelectorAll("tr.row").forEach(function (fila) {
+  function alternar() {
+    var d = fila.nextElementSibling;
+    if (!d) return;
+    d.hidden = !d.hidden;
+    fila.setAttribute("aria-expanded", String(!d.hidden));
+    fila.classList.toggle("abierta", !d.hidden);
+  }
+  fila.addEventListener("click", function (e) {
+    if (e.target.closest("a, select, button, form")) return;
+    alternar();
+  });
+  fila.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(); }
+  });
+});
+</script>
 {% endblock %}

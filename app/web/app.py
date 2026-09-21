@@ -160,6 +160,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
         hasta = (request.args.get("hasta") or "").strip()
         direccion = "asc" if request.args.get("dir") == "asc" else "desc"
         hoja = (request.args.get("hoja") or "").strip()
+        atencion = "todas" if request.args.get("atencion") == "todas" else "si"
         try:
             pagina = max(1, int(request.args.get("pagina", 1)))
         except ValueError:
@@ -168,7 +169,8 @@ def crear_app(settings: Settings | None = None) -> Flask:
             corrida = _corrida(con)
             filas, total = consultas.listar_ordenes(con, corrida["id"], veredicto, estado,
                                                     buscar, pagina, desde=desde, hasta=hasta,
-                                                    direccion=direccion, hoja=hoja)
+                                                    direccion=direccion, hoja=hoja,
+                                                    atencion=atencion)
             primera, ultima = consultas.rango_de_fechas(con, corrida["id"])
             paginas = max(1, -(-total // consultas.POR_PAGINA))
             detalle = consultas.situaciones_de(con, corrida["id"], [f["orden_ceser"] for f in filas])
@@ -176,7 +178,8 @@ def crear_app(settings: Settings | None = None) -> Flask:
                 "ordenes.html", corrida=corrida, filas=filas, detalle=detalle,
                 veredicto=veredicto, estado=estado, buscar=buscar,
                 desde=desde, hasta=hasta, primera=primera, ultima=ultima, direccion=direccion,
-                hoja=hoja,
+                hoja=hoja, atencion=atencion,
+                cuenta_atencion=consultas.cuenta_por_atencion(con, corrida["id"]),
                 pagina=min(pagina, paginas), paginas=paginas, total=total,
                 veredictos=consultas.conteo_veredictos(con, corrida["id"]),
                 estados=consultas.conteo_estados(con, corrida["id"]),

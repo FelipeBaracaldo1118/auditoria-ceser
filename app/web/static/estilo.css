@@ -80,3 +80,32 @@ a.pill{text-decoration:none}
 a.pill:hover{filter:brightness(.94)}
 td.l a{color:var(--accent);text-decoration:none}
 td.l a:hover{text-decoration:underline}
+
+/* --- filtros mas legibles --- */
+.etiqueta-filtro{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+color:var(--faint);min-width:96px}
+.mas-filtros{border-top:1px solid var(--line);padding-top:12px}
+.mas-filtros summary{cursor:pointer;font-size:13.5px;color:var(--accent);font-weight:500;
+list-style:none;user-select:none}
+.mas-filtros summary::-webkit-details-marker{display:none}
+.mas-filtros summary::before{content:"▸ ";font-size:11px}
+.mas-filtros[open] summary::before{content:"▾ "}
+.mas-filtros .filtros,.mas-filtros form{margin-top:12px}
+
+/* --- tabla mas ancha y respirada --- */
+table.ordenes{min-width:900px}
+table.ordenes td{padding:11px 12px;font-size:13px}
+table.ordenes th{padding:12px}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--surface-2)}
+tr.row.abierta td{background:var(--accent-soft)}
+.chevron{display:inline-block;color:var(--faint);transition:transform .12s;margin-right:4px}
+tr.row.abierta .chevron{transform:rotate(90deg)}
+td.resid-warn{color:var(--warn);font-weight:600}
+
+/* --- ficha del detalle --- */
+.ficha{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px 24px;
+margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ficha b{color:var(--ink);font-weight:600}
+.ficha .invertido{background:var(--warn-soft);color:var(--warn);padding:1px 6px;border-radius:3px}

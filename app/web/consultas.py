@@ -95,7 +95,8 @@ POR_PAGINA = 50
 def listar_ordenes(con, corrida_id: int, veredicto: str = "todas", estado: str = "pendiente",
                    buscar: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA,
                    desde: str = "", hasta: str = "",
-                   direccion: str = "desc", hoja: str = "") -> tuple[list[dict], int]:
+                   direccion: str = "desc", hoja: str = "",
+                   atencion: str = "si") -> tuple[list[dict], int]:
     """Una pagina de ordenes y el total que cumple los filtros.
 
     Se pagina porque una corrida trae cerca de 1.800 ordenes: pintarlas todas
@@ -105,6 +106,10 @@ def listar_ordenes(con, corrida_id: int, veredicto: str = "todas", estado: str =
     estado_col = func.coalesce(r.estado, "pendiente")
     origen = ordenes.outerjoin(revisiones, o.orden_ceser == r.orden_ceser)
     condiciones = [o.corrida_id == corrida_id]
+    # Por defecto solo lo que la auditoria marco: de 1.787 ordenes, 257 tienen algo
+    # que revisar. Abrir con todas entierra el trabajo real bajo filas vacias.
+    if atencion == "si":
+        condiciones.append(o.requiere_revision.is_(True))
     if veredicto != "todas":
         condiciones.append(o.veredicto_del_cruce == veredicto)
     if estado != "todas":
@@ -132,6 +137,14 @@ def listar_ordenes(con, corrida_id: int, veredicto: str = "todas", estado: str =
         .order_by(criterio, o.orden_ceser)
         .limit(por_pagina).offset((pagina - 1) * por_pagina)).mappings()
     return [dict(f) for f in filas], total
+
+
+def cuenta_por_atencion(con, corrida_id: int) -> dict[str, int]:
+    o = ordenes.c
+    total = con.execute(select(func.count()).where(o.corrida_id == corrida_id)).scalar() or 0
+    con_algo = con.execute(select(func.count()).where(
+        o.corrida_id == corrida_id, o.requiere_revision.is_(True))).scalar() or 0
+    return {"si": con_algo, "todas": total}
 
 
 def situaciones_de(con, corrida_id: int, numeros: list[str]) -> dict[str, list[dict]]:
