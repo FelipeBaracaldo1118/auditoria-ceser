@@ -122,3 +122,19 @@ def test_sin_pagina_alterna_configurada_todo_va_a_la_de_siempre():
 
 def test_una_orden_vacia_no_produce_enlace():
     assert _ajustes(url_orden_tech="https://sistema/x?o={orden}").url_de_orden("") is None
+
+
+# --- Gid de las pestañas anotados a mano ----------------------------------
+def test_los_gid_se_pueden_configurar():
+    from app.config.settings import _gids
+    assert _gids("HAROLD H.T:1291508231; SAMSUNG:0") == {"HAROLD H.T": 1291508231, "SAMSUNG": 0}
+    assert _gids("") == {} and _gids(None) == {}
+
+
+def test_un_gid_mal_escrito_avisa_en_vez_de_ignorarse():
+    import pytest
+    from app.config.settings import ConfigError, _gids
+    with pytest.raises(ConfigError, match="mal formado"):
+        _gids("HAROLD H.T")
+    with pytest.raises(ConfigError, match="mal formado"):
+        _gids("HAROLD H.T:abc")

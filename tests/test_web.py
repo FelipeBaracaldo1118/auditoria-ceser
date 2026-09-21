@@ -440,3 +440,25 @@ def test_el_detalle_muestra_los_enlaces_al_excel(cliente, app):
     html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
     assert "Ver en el Excel" in html
     assert "HAROLD H.T fila" in html and "FALABELLA fila" in html
+
+
+def test_los_gid_configurados_mandan_sobre_los_de_la_corrida(tmp_path):
+    """Se anotan a mano justamente cuando la API no los entrega."""
+    import dataclasses
+    from app.config.settings import get_settings
+    from app.web.app import crear_app
+    from tests.test_auditoria_db import _caso_real
+
+    url = f"sqlite:///{tmp_path / 'g.db'}"
+    motor = base.motor(url); base.crear_esquema(motor)
+    base.guardar_corrida(motor, _caso_real(), gids={"repuestos": {"HAROLD H.T": 1}})
+
+    app = crear_app(dataclasses.replace(
+        get_settings(), audit_db_url=url, web_secret_key="s",
+        web_usuarios={"g": generate_password_hash(CLAVE)},
+        gids_hojas={"repuestos": {"HAROLD H.T": 999}}))
+    app.config["TESTING"] = True
+    cliente = app.test_client()
+    cliente.post("/entrar", data={"usuario": "g", "clave": CLAVE})
+    html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
+    assert "gid=999" in html and "gid=1&" not in html

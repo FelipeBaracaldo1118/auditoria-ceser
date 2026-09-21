@@ -218,6 +218,9 @@ def crear_app(settings: Settings | None = None) -> Flask:
             corrida = _corrida(con)
             import json as _json
             gids = _json.loads(corrida["gids_hojas"]) if corrida["gids_hojas"] else {}
+            # Lo anotado a mano manda: se usa justamente cuando la API no los da.
+            for clave, mapa in (settings.gids_hojas or {}).items():
+                gids[clave] = {**gids.get(clave, {}), **mapa}
             filas, total = consultas.listar_ordenes(con, corrida["id"], veredicto, estado,
                                                     buscar, pagina, desde=desde, hasta=hasta,
                                                     direccion=direccion, hoja=hoja,

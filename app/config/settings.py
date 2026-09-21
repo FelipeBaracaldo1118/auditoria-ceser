@@ -105,6 +105,10 @@ class Settings:
     # del sistema (confirmado por el area el 21/09/2026): son casi la mitad.
     url_orden_tech_alterna: str | None = None
     prefijos_orden_alterna: tuple[str, ...] = ()
+    # Identificador de cada pestaña dentro de cada Excel, para enlazar a la fila
+    # exacta. La API de Hojas no los entrega cuando el archivo es un XLSX, asi
+    # que se pueden anotar a mano: se leen de la URL al abrir cada pestaña.
+    gids_hojas: dict = field(default_factory=dict)
     audit_db_url: str = ""       # base donde se guardan las corridas (ver _url_base_auditoria)
     web_secret_key: str = ""     # firma las sesiones de la interfaz
     web_usuarios: dict = field(default_factory=dict)   # usuario -> hash de contraseña
@@ -181,6 +185,20 @@ def _ruta_del_proyecto(valor: str | None) -> str | None:
     return str(ruta if ruta.is_absolute() else BASE_DIR / ruta)
 
 
+def _gids(valor: str | None) -> dict:
+    """'HAROLD H.T:1291508231; SAMSUNG:44' -> {'HAROLD H.T': 1291508231, 'SAMSUNG': 44}."""
+    encontrados = {}
+    for parte in (valor or "").split(";"):
+        parte = parte.strip()
+        if not parte:
+            continue
+        hoja, separador, gid = parte.rpartition(":")
+        if not separador or not gid.strip().isdigit():
+            raise ConfigError(f"Gid mal formado en {parte!r}: se espera 'nombre de la hoja:numero'")
+        encontrados[hoja.strip()] = int(gid.strip())
+    return encontrados
+
+
 def _usuarios_web(valor: str | None) -> dict:
     """WEB_USUARIOS = "gerente:<hash>;felipe:<hash>". Nunca contraseñas en claro.
 
@@ -247,6 +265,9 @@ def get_settings() -> Settings:
         url_orden_tech_alterna=_env("TECH_APP_URL_ORDEN_ALTERNA"),
         prefijos_orden_alterna=tuple(
             p.strip() for p in (_env("TECH_PREFIJOS_ORDEN_ALTERNA") or "").split(",") if p.strip()),
+        gids_hojas={clave: _gids(_env(f"DRIVE_GIDS_{clave.upper()}"))
+                    for clave in ("repuestos", "aseguradoras")
+                    if _env(f"DRIVE_GIDS_{clave.upper()}")},
         audit_db_url=_url_base_auditoria(data_dir),
         web_secret_key=_env("WEB_SECRET_KEY") or "",
         web_usuarios=_usuarios_web(_env("WEB_USUARIOS")),
