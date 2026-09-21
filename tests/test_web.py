@@ -462,3 +462,13 @@ def test_los_gid_configurados_mandan_sobre_los_de_la_corrida(tmp_path):
     cliente.post("/entrar", data={"usuario": "g", "clave": CLAVE})
     html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
     assert "gid=999" in html and "gid=1&" not in html
+
+
+def test_los_conteos_de_revision_respetan_lo_que_se_esta_viendo(cliente, app):
+    """Decir 'Pendiente 1787' mientras la lista muestra 257 se contradice en pantalla."""
+    base.guardar_corrida(app.motor_de_prueba, _corrida_mixta(app.motor_de_prueba))
+    _entrar(cliente)
+    html = cliente.get("/ordenes").get_data(as_text=True)
+    assert "Para revisar · 2" in html and "Pendiente · 2" in html
+    html = cliente.get("/ordenes?atencion=todas").get_data(as_text=True)
+    assert "Todas · 4" in html and "Pendiente · 4" in html

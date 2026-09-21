@@ -76,13 +76,20 @@ def conteo_veredictos(con, corrida_id: int) -> dict[str, int]:
     return {v: n for v, n in filas}
 
 
-def conteo_estados(con, corrida_id: int) -> dict[str, int]:
-    """Cuantas ordenes de la corrida hay en cada estado de revision."""
+def conteo_estados(con, corrida_id: int, atencion: str = "todas") -> dict[str, int]:
+    """Cuantas ordenes hay en cada estado de revision, dentro de lo que se esta viendo.
+
+    Si se cuentan las 1.787 de la corrida mientras la lista muestra 257, los
+    numeros de los dos grupos de filtros se contradicen en pantalla.
+    """
     o, r = ordenes.c, revisiones.c
+    condiciones = [o.corrida_id == corrida_id]
+    if atencion == "si":
+        condiciones.append(o.requiere_revision.is_(True))
     filas = con.execute(
         select(func.coalesce(r.estado, "pendiente").label("estado"), func.count().label("n"))
         .select_from(ordenes.outerjoin(revisiones, o.orden_ceser == r.orden_ceser))
-        .where(o.corrida_id == corrida_id)
+        .where(*condiciones)
         .group_by(func.coalesce(r.estado, "pendiente"))).all()
     conteo = {e: 0 for e in ESTADOS_REVISION}
     conteo.update({e: n for e, n in filas})

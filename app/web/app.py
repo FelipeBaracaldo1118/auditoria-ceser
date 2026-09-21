@@ -239,7 +239,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
                 cuenta_atencion=consultas.cuenta_por_atencion(con, corrida["id"]),
                 pagina=min(pagina, paginas), paginas=paginas, total=total,
                 veredictos=consultas.conteo_veredictos(con, corrida["id"]),
-                estados=consultas.conteo_estados(con, corrida["id"]),
+                estados=consultas.conteo_estados(con, corrida["id"], atencion),
                 VEREDICTOS=consultas.VEREDICTOS, NOMBRE_ESTADO=consultas.NOMBRE_ESTADO)
 
     @app.post("/revision")
