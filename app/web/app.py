@@ -85,6 +85,13 @@ def crear_app(settings: Settings | None = None) -> Flask:
     app.jinja_env.globals["url_de_orden"] = settings.url_de_orden
     app.jinja_env.globals["url_del_archivo"] = settings.url_del_archivo
     motor = base.motor(settings.audit_db_url)
+    # La interfaz consulta columnas que puede haber agregado una version nueva
+    # del reporte. Asegurar el esquema aqui evita que la pantalla falle cuando
+    # se despliega codigo nuevo antes de que corra la auditoria de la manana.
+    try:
+        base.crear_esquema(motor)
+    except Exception:
+        logger.exception("No se pudo verificar el esquema de la base de auditoria")
     app.jinja_env.filters["pesos"] = pesos
     app.jinja_env.filters["porcentaje"] = porcentaje
     app.jinja_env.filters["mes_largo"] = mes_largo

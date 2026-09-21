@@ -379,3 +379,27 @@ def test_el_detalle_enlaza_a_los_dos_excel_con_su_ubicacion(cliente, app):
     html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
     assert "docs.google.com/spreadsheets" in html
     assert "HAROLD H.T fila" in html and "FALABELLA fila" in html
+
+
+def test_la_interfaz_pone_al_dia_el_esquema_al_arrancar(tmp_path):
+    """Desplegar codigo nuevo antes de la auditoria del dia no puede tumbar la pantalla."""
+    import dataclasses
+    from sqlalchemy import text
+    from app.config.settings import get_settings
+    from app.web.app import crear_app
+    from tests.test_auditoria_db import _caso_real
+
+    url = f"sqlite:///{tmp_path / 'vieja.db'}"
+    motor = base.motor(url)
+    base.crear_esquema(motor)
+    base.guardar_corrida(motor, _caso_real())
+    with motor.begin() as con:      # una base creada por una version anterior
+        con.execute(text("ALTER TABLE ordenes DROP COLUMN ubicacion_en_repuestos"))
+
+    app = crear_app(dataclasses.replace(
+        get_settings(), audit_db_url=url, web_secret_key="s",
+        web_usuarios={"g": generate_password_hash(CLAVE)}))
+    app.config["TESTING"] = True
+    cliente = app.test_client()
+    cliente.post("/entrar", data={"usuario": "g", "clave": CLAVE})
+    assert cliente.get("/ordenes").status_code == 200
