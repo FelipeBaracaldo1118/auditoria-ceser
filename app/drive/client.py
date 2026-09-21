@@ -20,7 +20,10 @@ from app.config.settings import ConfigError, Settings
 
 logger = logging.getLogger(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly",
+          # Solo para saber el identificador de cada pestaña y poder enlazar a
+          # la fila exacta; tambien es de solo lectura.
+          "https://www.googleapis.com/auth/spreadsheets.readonly"]
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 GOOGLE_SHEET_MIME = "application/vnd.google-apps.spreadsheet"
@@ -99,7 +102,9 @@ def construir_servicio(settings: Settings):
         creds = _credenciales_oauth(settings)
         logger.info("Autenticacion Drive: OAuth local")
 
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    servicio = build("drive", "v3", credentials=creds, cache_discovery=False)
+    servicio._credenciales_ceser = creds     # se reutilizan para la API de Hojas
+    return servicio
 
 
 def _credenciales_oauth(settings: Settings):
@@ -245,3 +250,23 @@ def explicar_error_drive(exc: Exception, client_email: str | None = None,
         return ("Google rechazo las credenciales: la clave pudo ser eliminada en la consola, o el "
                 "reloj de este equipo esta desfasado. Genere una clave nueva o sincronice la hora.")
     return f"Error inesperado de Drive: {texto[:300]}"
+
+
+def gids_de_hojas(credenciales, file_id: str) -> dict[str, int]:
+    """Identificador de cada pestaña, para enlazar a una hoja y fila concretas.
+
+    Google le asigna un `gid` a cada pestaña incluso cuando el archivo es un
+    XLSX abierto en Hojas de calculo. Sin esto solo se puede enlazar al archivo.
+    Si la API no esta habilitada o el archivo no se puede leer asi, devuelve un
+    diccionario vacio y los enlaces caen al archivo completo.
+    """
+    from googleapiclient.discovery import build
+
+    try:
+        api = build("sheets", "v4", credentials=credenciales, cache_discovery=False)
+        meta = api.spreadsheets().get(
+            spreadsheetId=file_id, fields="sheets.properties(sheetId,title)").execute()
+    except Exception as exc:
+        logger.warning("No se pudieron leer las pestañas de %s: %s", file_id, str(exc)[:120])
+        return {}
+    return {h["properties"]["title"]: h["properties"]["sheetId"] for h in meta.get("sheets", [])}

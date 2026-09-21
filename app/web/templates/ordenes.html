@@ -114,16 +114,8 @@
           <p class="nota">Sin novedades: esta orden cuadra.</p>
         {% endfor %}
         <div class="ficha">
-          <span>{% set xls = url_del_archivo('repuestos') %}
-            {% if xls and f.ubicacion_en_repuestos %}<a href="{{ xls }}" target="_blank" rel="noopener"
-               title="Abrir el Excel de Repuestos · {{ f.ubicacion_en_repuestos }}"><b>Proveedor</b> ↗</a>{% else %}<b>Proveedor</b>{% endif %}
-            factura {{ f.factura_proveedor or "—" }} del {{ f.fecha_factura_proveedor or "—" }}
-            {%- if f.ubicacion_en_repuestos %} · <span class="donde">{{ f.ubicacion_en_repuestos }}</span>{% endif %}</span>
-          <span>{% set xla = url_del_archivo('aseguradoras') %}
-            {% if xla and f.ubicacion_en_aseguradoras %}<a href="{{ xla }}" target="_blank" rel="noopener"
-               title="Abrir el Excel de Aseguradoras · {{ f.ubicacion_en_aseguradoras }}"><b>Aseguradora</b> ↗</a>{% else %}<b>Aseguradora</b>{% endif %}
-            {%- if f.ubicacion_en_aseguradoras %} · <span class="donde">{{ f.ubicacion_en_aseguradoras }}</span>{% endif %}
-            factura {{ f.factura_a_la_aseguradora or "—" }}
+          <span><b>Proveedor</b> factura {{ f.factura_proveedor or "—" }} del {{ f.fecha_factura_proveedor or "—" }}</span>
+          <span><b>Aseguradora</b> factura {{ f.factura_a_la_aseguradora or "—" }}
             en <span class="{% if invertido %}invertido{% endif %}">{{ f.mes_facturado_a_la_aseguradora or "—" }}</span>
             {%- if invertido %} · se cobró antes de que el proveedor facturara{% endif %}</span>
           <span><b>Repuesto</b> {{ f.repuestos_cobrados_hoja_repuestos|pesos }} en la hoja ·
@@ -133,7 +125,18 @@
           <span><b>Esperado</b> {{ f.esperado_del_cruce|pesos }} · <b>facturado</b> {{ f.valor_total_archivo_aseguradora|pesos }}</span>
           <span><b>Margen</b> {{ f.margen_del_repuesto_con_iva|porcentaje }} sobre el repuesto ·
             {{ f.margen_del_servicio|porcentaje }} sobre el servicio</span>
-          <span><b>Hojas</b> {{ f.hoja_repuestos or "—" }} · {{ f.hoja_aseguradora or "—" }}</span>
+          <span class="hojas"><b>Ver en el Excel</b>
+            {% for e in enlaces_a_la_hoja(url_del_archivo('repuestos'), f.ubicacion_en_repuestos, gids.get('repuestos')) %}
+              <a href="{{ e.url }}" target="_blank" rel="noopener"
+                 title="{{ 'Abre en la hoja y la fila exactas' if e.exacto else 'Abre el archivo; la API de Hojas no esta habilitada' }}"
+                 >{{ e.texto }} ↗</a>
+            {% endfor %}
+            {% for e in enlaces_a_la_hoja(url_del_archivo('aseguradoras'), f.ubicacion_en_aseguradoras, gids.get('aseguradoras')) %}
+              <a href="{{ e.url }}" target="_blank" rel="noopener"
+                 title="{{ 'Abre en la hoja y la fila exactas' if e.exacto else 'Abre el archivo; la API de Hojas no esta habilitada' }}"
+                 >{{ e.texto }} ↗</a>
+            {% endfor %}
+            {% if not f.ubicacion_en_repuestos and not f.ubicacion_en_aseguradoras %}<span class="dim">—</span>{% endif %}</span>
         </div>
       </td></tr>
     {% else %}

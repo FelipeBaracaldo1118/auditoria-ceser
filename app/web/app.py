@@ -68,6 +68,46 @@ def limites_del_mes(periodo: str) -> tuple[str, str]:
     return f"{periodo}-01", f"{periodo}-{monthrange(anio, mes)[1]:02d}"
 
 
+def partes_de_ubicacion(ubicacion: str | None) -> list[tuple[str, int | None]]:
+    """'HAROLD H.T fila 1806; SAMSUNG fila 12' -> [('HAROLD H.T', 1806), ('SAMSUNG', 12)]."""
+    partes = []
+    for trozo in str(ubicacion or "").split(";"):
+        trozo = trozo.strip()
+        if not trozo:
+            continue
+        hoja, separador, fila = trozo.rpartition(" fila ")
+        if separador and fila.strip().isdigit():
+            partes.append((hoja.strip(), int(fila.strip())))
+        else:
+            partes.append((trozo, None))
+    return partes
+
+
+def enlaces_a_la_hoja(url_archivo: str | None, ubicacion: str | None,
+                      gids: dict | None) -> list[dict]:
+    """Enlace a la pestaña y fila donde esta la orden dentro del Excel.
+
+    Con el gid de la pestaña se llega a la celda exacta; sin el, al archivo.
+    """
+    if not url_archivo:
+        return []
+    # Los nombres no coinciden exactamente: la hoja se llama " HAROLD H.T", con
+    # un espacio al inicio, y la ubicacion lo recorta. Se comparan normalizados.
+    por_nombre = {str(k).strip().casefold(): v for k, v in (gids or {}).items()}
+    enlaces = []
+    for hoja, fila in partes_de_ubicacion(ubicacion):
+        gid = por_nombre.get(hoja.strip().casefold())
+        destino = url_archivo
+        if gid is not None:
+            destino += f"#gid={gid}" + (f"&range=A{fila}" if fila else "")
+        enlaces.append({
+            "texto": f"{hoja} fila {fila}" if fila else hoja,
+            "url": destino,
+            "exacto": gid is not None and fila is not None,
+        })
+    return enlaces
+
+
 def porcentaje(valor) -> str:
     return "—" if valor is None else f"{Decimal(str(valor)):.2f}".replace(".", ",") + " %"
 
@@ -84,6 +124,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
     )
     app.jinja_env.globals["url_de_orden"] = settings.url_de_orden
     app.jinja_env.globals["url_del_archivo"] = settings.url_del_archivo
+    app.jinja_env.globals["enlaces_a_la_hoja"] = enlaces_a_la_hoja
     motor = base.motor(settings.audit_db_url)
     # La interfaz consulta columnas que puede haber agregado una version nueva
     # del reporte. Asegurar el esquema aqui evita que la pantalla falle cuando
@@ -175,6 +216,8 @@ def crear_app(settings: Settings | None = None) -> Flask:
             pagina = 1
         with motor.connect() as con:
             corrida = _corrida(con)
+            import json as _json
+            gids = _json.loads(corrida["gids_hojas"]) if corrida["gids_hojas"] else {}
             filas, total = consultas.listar_ordenes(con, corrida["id"], veredicto, estado,
                                                     buscar, pagina, desde=desde, hasta=hasta,
                                                     direccion=direccion, hoja=hoja,
@@ -186,7 +229,7 @@ def crear_app(settings: Settings | None = None) -> Flask:
                 "ordenes.html", corrida=corrida, filas=filas, detalle=detalle,
                 veredicto=veredicto, estado=estado, buscar=buscar,
                 desde=desde, hasta=hasta, primera=primera, ultima=ultima, direccion=direccion,
-                hoja=hoja, atencion=atencion,
+                hoja=hoja, atencion=atencion, gids=gids,
                 cuenta_atencion=consultas.cuenta_por_atencion(con, corrida["id"]),
                 pagina=min(pagina, paginas), paginas=paginas, total=total,
                 veredictos=consultas.conteo_veredictos(con, corrida["id"]),

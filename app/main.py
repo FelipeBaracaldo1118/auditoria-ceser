@@ -205,6 +205,7 @@ def comando_conciliar(args) -> int:
         corrida_id = base.guardar_corrida(
             engine, resultado, tech_consultado=cliente_tech is not None,
             cobertura=(periodos[0], periodos[-1]) if periodos else (None, None),
+            gids=_gids_de_los_archivos(settings, _servicio),
         )
         logger.info("Corrida %s guardada en %s", corrida_id, describir_url(settings.audit_db_url))
 
@@ -299,6 +300,28 @@ def comando_clave(args) -> int:
     print()
     print(f"{usuario}:{generate_password_hash(clave)}")
     return 0
+
+
+def _gids_de_los_archivos(settings, servicio_cacheado: list) -> dict:
+    """Identificador de cada pestaña de los dos Excel, para enlazar a la fila exacta.
+
+    Solo se consigue cuando se trabaja contra Drive; con archivos locales no hay
+    a que enlazar y los reportes caen al enlace del archivo completo.
+    """
+    if not servicio_cacheado:
+        return {}
+    from app.drive.client import gids_de_hojas
+
+    credenciales = getattr(servicio_cacheado[0], "_credenciales_ceser", None)
+    if credenciales is None:
+        return {}
+    gids = {}
+    for cfg in settings.archivos:
+        if cfg.file_id:
+            encontrados = gids_de_hojas(credenciales, cfg.file_id)
+            if encontrados:
+                gids[cfg.clave] = encontrados
+    return gids
 
 
 def comando_probar_drive(args) -> int:

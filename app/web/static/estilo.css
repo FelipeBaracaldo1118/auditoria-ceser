@@ -114,3 +114,6 @@ font-family:var(--mono);font-size:12px;color:var(--muted)}
 .ficha .donde{color:var(--faint)}
 .ficha a{color:var(--accent);text-decoration:none}
 .ficha a:hover{text-decoration:underline}
+
+.ficha .hojas{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
+.ficha .hojas a{background:var(--surface-2);padding:2px 8px;border-radius:4px;white-space:nowrap}

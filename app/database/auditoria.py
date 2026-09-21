@@ -64,6 +64,7 @@ corridas = Table(
     Column("para_revisar", Integer),
     Column("archivos", Text),                       # JSON: version exacta de cada archivo usado
     Column("resumen", Text),                        # JSON: el mismo resumen de la ejecucion
+    Column("gids_hojas", Text),                     # JSON: pestaña -> gid, para enlazar al Excel
     mysql_engine="InnoDB", mysql_charset="utf8mb4", mysql_collate="utf8mb4_unicode_ci",
 )
 
@@ -169,7 +170,8 @@ def _ahora() -> str:
 
 
 def guardar_corrida(engine: Engine, resultado: ResultadoAuditoria, tech_consultado: bool = False,
-                    cobertura: tuple[str | None, str | None] = (None, None)) -> int:
+                    cobertura: tuple[str | None, str | None] = (None, None),
+                    gids: dict | None = None) -> int:
     """Guarda la corrida completa en una sola transaccion: o queda toda o no queda nada."""
     r = resultado.resumen
     origenes = {a.origen for a in resultado.archivos}
@@ -186,6 +188,7 @@ def guardar_corrida(engine: Engine, resultado: ResultadoAuditoria, tech_consulta
             para_revisar=r.get("para_revisar"),
             archivos=json.dumps([a.as_dict() for a in resultado.archivos], ensure_ascii=False),
             resumen=json.dumps(r, ensure_ascii=False, default=str),
+            gids_hojas=json.dumps(gids, ensure_ascii=False) if gids else None,
         )).inserted_primary_key[0]
 
         filas, sits = [], []

@@ -403,3 +403,40 @@ def test_la_interfaz_pone_al_dia_el_esquema_al_arrancar(tmp_path):
     cliente = app.test_client()
     cliente.post("/entrar", data={"usuario": "g", "clave": CLAVE})
     assert cliente.get("/ordenes").status_code == 200
+
+
+# --- Enlace a la hoja y la fila exactas del Excel --------------------------
+def test_se_enlaza_a_la_pestana_y_la_fila_cuando_se_conoce_el_gid():
+    from app.web.app import enlaces_a_la_hoja
+    url = "https://docs.google.com/spreadsheets/d/ABC/edit"
+    e, = enlaces_a_la_hoja(url, " HAROLD H.T fila 1806", {" HAROLD H.T": 991})
+    assert e["url"] == url + "#gid=991&range=A1806"
+    assert e["texto"] == "HAROLD H.T fila 1806" or "1806" in e["texto"]
+    assert e["exacto"]
+
+
+def test_sin_gid_el_enlace_cae_al_archivo_completo():
+    from app.web.app import enlaces_a_la_hoja
+    url = "https://docs.google.com/spreadsheets/d/ABC/edit"
+    e, = enlaces_a_la_hoja(url, "HAROLD H.T fila 1806", {})
+    assert e["url"] == url and not e["exacto"]
+
+
+def test_una_orden_en_varias_hojas_da_varios_enlaces():
+    from app.web.app import enlaces_a_la_hoja
+    enlaces = enlaces_a_la_hoja("https://x/edit", "ACOPIO fila 37; FLAMINGO fila 90",
+                                {"ACOPIO": 1, "FLAMINGO": 2})
+    assert [e["texto"] for e in enlaces] == ["ACOPIO fila 37", "FLAMINGO fila 90"]
+
+
+def test_sin_archivo_configurado_no_hay_enlaces():
+    from app.web.app import enlaces_a_la_hoja
+    assert enlaces_a_la_hoja(None, "HAROLD H.T fila 5", {"HAROLD H.T": 1}) == []
+
+
+def test_el_detalle_muestra_los_enlaces_al_excel(cliente, app):
+    base.guardar_corrida(app.motor_de_prueba, _caso_real())
+    _entrar(cliente)
+    html = cliente.get("/ordenes?estado=todas&atencion=todas").get_data(as_text=True)
+    assert "Ver en el Excel" in html
+    assert "HAROLD H.T fila" in html and "FALABELLA fila" in html
